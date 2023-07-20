@@ -1,28 +1,29 @@
 dictionaries:
- - name: reviewers-per-file-path
+ - name: team-per-filepattern
    spec:
      '**/authentication/**': '"security"'
      '**/db/**': '"dba"'
      '.github/workflows/**': '"devops"' 
 
 workflows:
-  - name: Review Assignment and Approval Policy
+  - name: Review Assignment, Approval and Merge Policy
     run:
-      # First mandatory approval level from the `developers` team
+      # First mandatory review from the `developers` team
       - if: '!$hasRequiredApprovals(1, $team("developers"))'
         then:
           - $failCheckStatus("One approval is required from the 'developers' team")
           - if: '!$any($reviewers(), ($reviewer: String => $isElementOf($reviewer, $team("developers"))))'
             then: $assignReviewer($team("developers"), 1)
         else: 
-          # Second mandatory approval level based on file changes
+          # Second mandatory review level based on file changes
           - forEach: 
               key: $filePattern
               value: $teamName
-              in: $dictionary("reviewers-per-file-path")
+              in: $dictionary("team-per-filepattern")
               do:
                 - if: $hasFilePattern($filePattern) && !$hasRequiredApprovals(1, $team($teamName))
                   then: 
                     - $failCheckStatus($sprintf("One approval is required from team '%s' as one file matching '%s' has been touched", [$teamName, $filePattern]))
                     - if: '!$any($reviewers(), ($reviewer: String => $isElementOf($reviewer, $team($teamName))))'
                       then: $assignReviewer($team($teamName), 1)
+          - $merge("squash")
