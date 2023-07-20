@@ -1,31 +1,28 @@
 dictionaries:
- - name: approval-team-per-file-path
+ - name: reviewers-per-file-path
    spec:
      '**/authentication/**': '"security"'
      '**/db/**': '"dba"'
      '.github/workflows/**': '"devops"' 
 
 workflows:
-  - name: Approval and Review Assignment Policy
+  - name: Review Assignment and Approval Policy
     run:
-      # No action as long as the PR in draft
-      - if: '!$isDraft()'
+      # First mandatory approval level from the `developers` team
+      - if: '!$hasRequiredApprovals(1, $team("developers"))'
         then:
-          # First mandatory approval level from the `developers` team
-          - if: '!$hasRequiredApprovals(1, $team("developers"))'
-            then:
-              - $failCheckStatus("One approval is required from the 'developers' team")
-              - if: '!$any($reviewers(), ($reviewer: String => $isElementOf($reviewer, $team("developers"))))'
-                then: $assignReviewer($team("developers"), 1)
-            else: 
-              # Second mandatory approval level based on touched files
-              - forEach: 
-                  key: $filePattern
-                  value: $teamName
-                  in: $dictionary("approval-team-per-file-path")
-                  do:
-                    - if: $hasFilePattern($filePattern) && !$hasRequiredApprovals(1, $team($teamName))
-                      then: 
-                        - $failCheckStatus($sprintf("One approval is required from team '%s' as one file matching '%s' has been touched", [$teamName, $filePattern]))
-                        - if: '!$any($reviewers(), ($reviewer: String => $isElementOf($reviewer, $team($teamName))))'
-                          then: $assignReviewer($team($teamName), 1)
+          - $failCheckStatus("One approval is required from the 'developers' team")
+          - if: '!$any($reviewers(), ($reviewer: String => $isElementOf($reviewer, $team("developers"))))'
+            then: $assignReviewer($team("developers"), 1)
+        else: 
+          # Second mandatory approval level based on file changes
+          - forEach: 
+              key: $filePattern
+              value: $teamName
+              in: $dictionary("reviewers-per-file-path")
+              do:
+                - if: $hasFilePattern($filePattern) && !$hasRequiredApprovals(1, $team($teamName))
+                  then: 
+                    - $failCheckStatus($sprintf("One approval is required from team '%s' as one file matching '%s' has been touched", [$teamName, $filePattern]))
+                    - if: '!$any($reviewers(), ($reviewer: String => $isElementOf($reviewer, $team($teamName))))'
+                      then: $assignReviewer($team($teamName), 1)
